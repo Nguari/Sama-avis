@@ -12,9 +12,9 @@ const Navbar = () => {
           <Link to="/" className="hover:text-blue-600 transition-colors">Accueil</Link>
           <Link to="/carte" className="hover:text-blue-600 transition-colors">Carte</Link>
           <Link to="/suivi" className="hover:text-blue-600 transition-colors">Suivi</Link>
-          <Link to="/admin" className="px-5 py-2 bg-slate-900 text-white rounded-full hover:bg-blue-600 transition-all">
-            Admin
-          </Link>
+          <Link to="/login" className="px-6 py-2.5 bg-blue-600 text-white rounded-full font-bold text-sm hover:bg-blue-700 transition-all shadow-md shadow-blue-100">
+  Connexion
+</Link>
         </div>
       </div>
     </nav>

@@ -5,6 +5,8 @@ import Signalement from './pages/Signalement';
 import Carte from './pages/Carte';
 import Suivi from './pages/Suivi';
 import Admin from './pages/Admin';
+import Login from './pages/Login';
+import Register from './pages/Register';
 
 function App() {
   return (
@@ -21,6 +23,8 @@ function App() {
             <Route path="/carte" element={<Carte />} />
             <Route path="/suivi" element={<Suivi />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
           </Routes>
         </main>
       </div>
