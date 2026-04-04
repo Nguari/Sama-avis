@@ -1,18 +1,46 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import api from '../services/api';
 
 const Register = () => {
-  const [formData, setFormData] = useState({ nom: '', email: '', password: '', confirmPassword: '' });
-  const [error, setError] = useState('');
+  const [formData, setFormData]     = useState({ nom: '', email: '', password: '', confirmPassword: '' });
+  const [error, setError]           = useState('');
+  const [chargement, setChargement] = useState(false);
   const navigate = useNavigate();
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
-    if (formData.password.length < 6) { setError("Le mot de passe doit faire au moins 6 caractères."); return; }
-    if (formData.password !== formData.confirmPassword) { setError("Les mots de passe ne correspondent pas."); return; }
-    alert("Inscription réussie !");
-    navigate('/login');
+
+    if (formData.password.length < 6) {
+      setError("Le mot de passe doit faire au moins 6 caractères.");
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError("Les mots de passe ne correspondent pas.");
+      return;
+    }
+
+    setChargement(true);
+
+    try {
+      await api.post('/auth/inscription', {
+        nom:          formData.nom,
+        email:        formData.email,
+        mot_de_passe: formData.password
+      });
+
+      navigate('/login');
+
+    } catch (err) {
+      if (err.response?.status === 409) {
+        setError("Cet email est déjà utilisé.");
+      } else {
+        setError("Une erreur est survenue. Réessayez.");
+      }
+    } finally {
+      setChargement(false);
+    }
   };
 
   return (
@@ -35,21 +63,49 @@ const Register = () => {
         <form onSubmit={handleRegister} className="space-y-4">
           <div className="space-y-1">
             <label className="text-[10px] font-black text-slate-400 ml-5 uppercase tracking-widest">Identité</label>
-            <input type="text" placeholder="Nom Complet" required className="w-full px-8 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all border border-transparent" onChange={(e) => setFormData({...formData, nom: e.target.value})} />
+            <input
+              type="text"
+              placeholder="Nom Complet"
+              required
+              className="w-full px-8 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all border border-transparent"
+              onChange={(e) => setFormData({...formData, nom: e.target.value})}
+            />
           </div>
 
           <div className="space-y-1">
             <label className="text-[10px] font-black text-slate-400 ml-5 uppercase tracking-widest">Contact</label>
-            <input type="email" placeholder="Email professionnel" required className="w-full px-8 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all border border-transparent" onChange={(e) => setFormData({...formData, email: e.target.value})} />
+            <input
+              type="email"
+              placeholder="Email professionnel"
+              required
+              className="w-full px-8 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all border border-transparent"
+              onChange={(e) => setFormData({...formData, email: e.target.value})}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <input type="password" placeholder="Pass" required className="w-full px-6 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all" onChange={(e) => setFormData({...formData, password: e.target.value})} />
-            <input type="password" placeholder="Confirmer" required className="w-full px-6 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all" onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})} />
+            <input
+              type="password"
+              placeholder="Pass"
+              required
+              className="w-full px-6 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+              onChange={(e) => setFormData({...formData, password: e.target.value})}
+            />
+            <input
+              type="password"
+              placeholder="Confirmer"
+              required
+              className="w-full px-6 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all"
+              onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+            />
           </div>
           
-          <button className="w-full py-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-black text-lg hover:shadow-2xl hover:shadow-blue-200 transition-all transform hover:-translate-y-1 active:scale-95 mt-4">
-            Devenir Citoyen
+          <button
+            type="submit"
+            disabled={chargement}
+            className="w-full py-6 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl font-black text-lg hover:shadow-2xl hover:shadow-blue-200 transition-all transform hover:-translate-y-1 active:scale-95 mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {chargement ? 'Création...' : 'Créer un compte'}
           </button>
         </form>
 

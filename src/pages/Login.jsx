@@ -1,19 +1,37 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import api from '../services/api';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail]           = useState('');
+  const [password, setPassword]     = useState('');
+  const [erreur, setErreur]         = useState('');
+  const [chargement, setChargement] = useState(false);
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (email !== "" && password !== "") {
-      const isAdmin = email === "admin@samaavis.sn";
-      const userSession = { email, nom: 'Ahmad', role: isAdmin ? 'admin' : 'user' };
-      localStorage.setItem('user', JSON.stringify(userSession));
-      navigate('/'); 
+    setErreur('');
+    setChargement(true);
+
+    try {
+      const response = await api.post('/auth/connexion', {
+        email,
+        mot_de_passe: password
+      });
+
+      // Sauvegarde le token et les infos utilisateur
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.utilisateur));
+
+      // Redirige selon le rôle (admin → /admin, citoyen → /)
+      navigate(response.data.redirect);
       window.location.reload();
+
+    } catch (err) {
+      setErreur('Email ou mot de passe incorrect');
+    } finally {
+      setChargement(false);
     }
   };
 
@@ -29,20 +47,42 @@ const Login = () => {
 
         <form onSubmit={handleLogin} className="space-y-6 relative z-10">
           <div className="group">
-            <input type="email" required placeholder="votre@email.com" className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all text-slate-900 border border-transparent font-medium" onChange={(e) => setEmail(e.target.value)} />
+            <input
+              type="email"
+              required
+              placeholder="votre@email.com"
+              className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all text-slate-900 border border-transparent font-medium"
+              onChange={(e) => setEmail(e.target.value)}
+            />
           </div>
 
           <div className="group">
-            <input type="password" required placeholder="Mot de passe" className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all text-slate-900 border border-transparent font-medium" onChange={(e) => setPassword(e.target.value)} />
+            <input
+              type="password"
+              required
+              placeholder="Mot de passe"
+              className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all text-slate-900 border border-transparent font-medium"
+              onChange={(e) => setPassword(e.target.value)}
+            />
           </div>
+
+          {erreur && (
+            <p className="text-red-500 text-sm font-medium text-center">{erreur}</p>
+          )}
           
-          <button type='submit' className="w-full py-6 bg-slate-900 text-white rounded-[1.5rem] font-black text-xl hover:bg-blue-600 hover:shadow-2xl hover:shadow-blue-200 transition-all duration-500 transform hover:scale-[1.02]">
-            Se connecter
+          <button
+            type="submit"
+            disabled={chargement}
+            className="w-full py-6 bg-slate-900 text-white rounded-[1.5rem] font-black text-xl hover:bg-blue-600 hover:shadow-2xl hover:shadow-blue-200 transition-all duration-500 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {chargement ? 'Connexion...' : 'Se connecter'}
           </button>
         </form>
 
         <div className="mt-12 pt-8 border-t border-slate-50 text-center">
-            <Link to="/register" className="text-slate-400 font-bold text-sm hover:text-blue-600 transition-colors tracking-wide uppercase">Créer un compte gratuitement</Link>
+          <Link to="/register" className="text-slate-400 font-bold text-sm hover:text-blue-600 transition-colors tracking-wide uppercase">
+            Créer un compte gratuitement
+          </Link>
         </div>
       </div>
     </div>
