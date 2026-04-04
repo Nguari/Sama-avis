@@ -1,18 +1,34 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { authService } from '../api';
 
 const Register = () => {
-  const [formData, setFormData] = useState({ nom: '', email: '', password: '', confirmPassword: '' });
+  const [formData, setFormData] = useState({ nom: '', prenom: '', email: '', password: '', confirmPassword: '' });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const navigate = useNavigate();
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     setError('');
-    if (formData.password.length < 6) { setError("Le mot de passe doit faire au moins 6 caractères."); return; }
-    if (formData.password !== formData.confirmPassword) { setError("Les mots de passe ne correspondent pas."); return; }
-    alert("Inscription réussie !");
-    navigate('/login');
+    setSuccess('');
+
+    if (formData.password.length < 6) {
+      setError('Le mot de passe doit faire au moins 6 caractères.');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+
+    try {
+      await authService.inscription({ nom: formData.nom, prenom: formData.prenom, email: formData.email, mot_de_passe: formData.password });
+      setSuccess('Inscription réussie ! Vous pouvez maintenant vous connecter.');
+      navigate('/login');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur lors de l’inscription.');
+    }
   };
 
   return (
@@ -31,11 +47,19 @@ const Register = () => {
             {error}
           </div>
         )}
+        {success && (
+          <div className="mb-6 p-4 bg-emerald-50 text-emerald-700 text-xs font-black rounded-2xl border border-emerald-100 text-center uppercase tracking-wider">
+            {success}
+          </div>
+        )}
 
         <form onSubmit={handleRegister} className="space-y-4">
           <div className="space-y-1">
             <label className="text-[10px] font-black text-slate-400 ml-5 uppercase tracking-widest">Identité</label>
-            <input type="text" placeholder="Nom Complet" required className="w-full px-8 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all border border-transparent" onChange={(e) => setFormData({...formData, nom: e.target.value})} />
+            <div className="grid grid-cols-2 gap-3">
+              <input type="text" placeholder="Nom" value={formData.nom} required className="w-full px-6 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all border border-transparent" onChange={(e) => setFormData({...formData, nom: e.target.value})} />
+              <input type="text" placeholder="Prenom" value={formData.prenom} required className="w-full px-6 py-5 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all border border-transparent" onChange={(e) => setFormData({...formData, prenom: e.target.value})} />
+            </div>
           </div>
 
           <div className="space-y-1">

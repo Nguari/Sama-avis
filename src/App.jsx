@@ -1,10 +1,12 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import Accueil from './pages/Accueil';
 import Signalement from './pages/Signalement';
 import Carte from './pages/Carte';
 import Suivi from './pages/Suivi';
 import Admin from './pages/Admin';
+import CreateAdmin from './pages/CreateAdmin';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
@@ -23,10 +25,12 @@ function App() {
             <Route path="/carte" element={<Carte />} />
             <Route path="/suivi" element={<Suivi />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/admin/create-admin" element={<CreateAdmin />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
           </Routes>
         </main>
+        <Footer />
       </div>
     </Router>
   );

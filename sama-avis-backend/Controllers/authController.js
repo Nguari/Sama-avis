@@ -8,10 +8,10 @@ const JWT_SECRET = process.env.JWT_SECRET || 'sama_avis_secret';
 // POST /api/auth/inscription
 const inscription = async (req, res) => {
   try {
-    const { nom, email, mot_de_passe } = req.body;
+    const { nom, prenom, email, mot_de_passe } = req.body;
 
-    if (!nom || !email || !mot_de_passe) {
-      return res.status(400).json({ message: 'Nom, email et mot de passe sont obligatoires' });
+    if (!nom || !prenom || !email || !mot_de_passe) {
+      return res.status(400).json({ message: 'Nom, prenom, email et mot de passe sont obligatoires' });
     }
 
     const [existing] = await db.query('SELECT id FROM utilisateurs WHERE email = ?', [email]);
@@ -21,10 +21,11 @@ const inscription = async (req, res) => {
 
     const hash = await bcrypt.hash(mot_de_passe, 10);
     const id = uuidv4();
+    const nomComplet = `${nom} ${prenom}`;
 
     await db.query(
       'INSERT INTO utilisateurs (id, nom, email, mot_de_passe, role) VALUES (?, ?, ?, ?, ?)',
-      [id, nom, email, hash, 'citoyen']
+      [id, nomComplet, email, hash, 'citoyen']
     );
 
     res.status(201).json({ message: 'Compte créé avec succès' });
@@ -89,4 +90,39 @@ const getAllUtilisateurs = async (req, res) => {
   }
 };
 
-module.exports = { inscription, connexion, getAllUtilisateurs };
+// POST /api/auth/inscription-admin (Route sécurisée pour créer un admin)
+const inscriptionAdmin = async (req, res) => {
+  try {
+    const { nom, prenom, email, mot_de_passe, adminSecret } = req.body;
+    const ADMIN_SECRET = process.env.ADMIN_SECRET || 'sama_avis_admin_secret_2024';
+
+    // Vérifier le secret administrateur
+    if (adminSecret !== ADMIN_SECRET) {
+      return res.status(403).json({ message: 'Clé administrateur invalide' });
+    }
+
+    if (!nom || !prenom || !email || !mot_de_passe) {
+      return res.status(400).json({ message: 'Nom, prenom, email et mot de passe sont obligatoires' });
+    }
+
+    const [existing] = await db.query('SELECT id FROM utilisateurs WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      return res.status(409).json({ message: 'Cet email est déjà utilisé' });
+    }
+
+    const hash = await bcrypt.hash(mot_de_passe, 10);
+    const id = uuidv4();
+    const nomComplet = `${nom} ${prenom}`;
+
+    await db.query(
+      'INSERT INTO utilisateurs (id, nom, email, mot_de_passe, role) VALUES (?, ?, ?, ?, ?)',
+      [id, nomComplet, email, hash, 'admin']
+    );
+
+    res.status(201).json({ message: 'Compte administrateur créé avec succès', userId: id });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+  }
+};
+
+module.exports = { inscription, connexion, getAllUtilisateurs, inscriptionAdmin };

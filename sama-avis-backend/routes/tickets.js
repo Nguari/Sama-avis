@@ -21,13 +21,13 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const typesValides = /jpeg|jpg|png|webp/;
+    const typesValides = /jpeg|jpg|png|webp|mp4|mov|webm/;
     if (typesValides.test(path.extname(file.originalname).toLowerCase())) {
       cb(null, true);
     } else {
-      cb(new Error('Seules les images jpg, png et webp sont acceptées'));
+      cb(new Error('Seules les images et vidéos (jpg, png, webp, mp4, mov, webm) sont acceptées'));
     }
   }
 });
@@ -35,7 +35,7 @@ const upload = multer({
 // Routes publiques (citoyen)
 router.get('/tickets', getAllTickets);
 router.get('/tickets/:id', getTicketById);
-router.post('/tickets', upload.single('photo'), createTicket);
+router.post('/tickets', upload.array('attachments', 6), createTicket);
 
 // Routes protégées (admin seulement)
 router.patch('/tickets/:id/statut', verifierToken, verifierAdmin, updateStatut);

@@ -1,19 +1,30 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { authService } from '../api';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    if (email !== "" && password !== "") {
-      const isAdmin = email === "admin@samaavis.sn";
-      const userSession = { email, nom: 'Ahmad', role: isAdmin ? 'admin' : 'user' };
+    setError('');
+
+    if (email === '' || password === '') {
+      setError('Veuillez saisir votre email et votre mot de passe.');
+      return;
+    }
+
+    try {
+      const response = await authService.connexion({ email, mot_de_passe: password });
+      const userSession = response.data.utilisateur;
       localStorage.setItem('user', JSON.stringify(userSession));
-      navigate('/'); 
+      navigate(response.data.redirect || '/');
       window.location.reload();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Erreur lors de la connexion.');
     }
   };
 
@@ -28,6 +39,11 @@ const Login = () => {
         </div>
 
         <form onSubmit={handleLogin} className="space-y-6 relative z-10">
+          {error && (
+            <div className="p-4 bg-red-50 text-red-600 rounded-2xl border border-red-100 text-sm font-bold text-center">
+              {error}
+            </div>
+          )}
           <div className="group">
             <input type="email" required placeholder="votre@email.com" className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all text-slate-900 border border-transparent font-medium" onChange={(e) => setEmail(e.target.value)} />
           </div>

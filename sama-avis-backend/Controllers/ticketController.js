@@ -32,12 +32,14 @@ const createTicket = async (req, res) => {
     }
 
     const id = uuidv4();
-    const photo_url = req.file ? `/uploads/${req.file.filename}` : null;
+    const attachmentUrls = req.files && req.files.length > 0
+      ? JSON.stringify(req.files.map((file) => `/uploads/${file.filename}`))
+      : null;
 
     await db.query(
       `INSERT INTO tickets (id, utilisateur_id, titre, categorie, description, latitude, longitude, photo_url)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, utilisateur_id || null, titre, categorie, description || null, latitude || null, longitude || null, photo_url]
+      [id, utilisateur_id || null, titre, categorie, description || null, latitude || null, longitude || null, attachmentUrls]
     );
 
     await enregistrerChangement(id, null, 'recu', utilisateur_id || null);
