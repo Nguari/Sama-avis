@@ -1,27 +1,49 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Login = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (email !== "" && password !== "") {
+      const isAdmin = email === "admin@samaavis.sn";
+      const userSession = { email, nom: 'Ahmad', role: isAdmin ? 'admin' : 'user' };
+      localStorage.setItem('user', JSON.stringify(userSession));
+      navigate('/'); 
+      window.location.reload();
+    }
+  };
+
   return (
-    <div className="min-h-[80vh] flex items-center justify-center px-6">
-      <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-xl shadow-slate-200 border border-slate-100">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-black text-slate-900">Bon retour !</h2>
-          <p className="text-slate-500 mt-2 font-medium">Connectez-vous pour continuer</p>
+    <div className="min-h-[90vh] flex items-center justify-center px-6">
+      <div className="max-w-md w-full bg-white rounded-[3.5rem] p-12 shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] border border-slate-50 relative overflow-hidden">
+        <div className="absolute -top-24 -right-24 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-60"></div>
+        
+        <div className="text-center mb-12 relative z-10">
+          <h2 className="text-5xl font-black text-slate-900 tracking-tighter mb-4">Sama<span className="text-blue-600">Avis</span></h2>
+          <p className="text-slate-500 font-medium">Content de vous revoir !</p>
         </div>
 
-        <form className="space-y-5">
-          <input type="email" placeholder="Email" className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all" />
-          <input type="password" placeholder="Mot de passe" className="w-full px-6 py-4 bg-slate-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-600 transition-all" />
+        <form onSubmit={handleLogin} className="space-y-6 relative z-10">
+          <div className="group">
+            <input type="email" required placeholder="votre@email.com" className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all text-slate-900 border border-transparent font-medium" onChange={(e) => setEmail(e.target.value)} />
+          </div>
+
+          <div className="group">
+            <input type="password" required placeholder="Mot de passe" className="w-full px-8 py-5 bg-slate-50 rounded-[1.5rem] outline-none focus:ring-4 focus:ring-blue-100 focus:bg-white transition-all text-slate-900 border border-transparent font-medium" onChange={(e) => setPassword(e.target.value)} />
+          </div>
           
-          <button className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold text-lg hover:bg-blue-600 hover:scale-[1.02] transition-all">
+          <button type='submit' className="w-full py-6 bg-slate-900 text-white rounded-[1.5rem] font-black text-xl hover:bg-blue-600 hover:shadow-2xl hover:shadow-blue-200 transition-all duration-500 transform hover:scale-[1.02]">
             Se connecter
           </button>
         </form>
 
-        <p className="text-center mt-8 text-slate-600 text-sm font-medium">
-          Pas encore de compte ? <Link to="/register" className="text-blue-600 font-bold hover:underline">S'inscrire</Link>
-        </p>
+        <div className="mt-12 pt-8 border-t border-slate-50 text-center">
+            <Link to="/register" className="text-slate-400 font-bold text-sm hover:text-blue-600 transition-colors tracking-wide uppercase">Créer un compte gratuitement</Link>
+        </div>
       </div>
     </div>
   );
