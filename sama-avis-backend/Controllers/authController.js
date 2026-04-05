@@ -5,13 +5,27 @@ const { v4: uuidv4 } = require('uuid');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sama_avis_secret';
 
-// POST /api/auth/inscription
+// POST /api/auth/inscription (et /api/register)
 const inscription = async (req, res) => {
   try {
     const { nom, prenom, email, mot_de_passe } = req.body;
 
-    if (!nom || !prenom || !email || !mot_de_passe) {
-      return res.status(400).json({ message: 'Nom, prenom, email et mot de passe sont obligatoires' });
+    // Gérer les deux cas : frontend peut envoyer "nom" seul ou "nom" + "prenom"
+    let nomComplet = nom;
+    
+    // Si prenom est fourni, on concatène
+    if (prenom && prenom.trim() !== '') {
+      nomComplet = `${prenom} ${nom}`;
+    }
+
+    console.log('📝 Données reçues:', { nom, prenom, email, nomComplet });
+
+    if (!nomComplet || !email || !mot_de_passe) {
+      return res.status(400).json({ message: 'Nom, email et mot de passe sont obligatoires' });
+    }
+
+    if (mot_de_passe.length < 6) {
+      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 6 caractères' });
     }
 
     const [existing] = await db.query('SELECT id FROM utilisateurs WHERE email = ?', [email]);
@@ -21,20 +35,21 @@ const inscription = async (req, res) => {
 
     const hash = await bcrypt.hash(mot_de_passe, 10);
     const id = uuidv4();
-    const nomComplet = `${nom} ${prenom}`;
 
     await db.query(
-      'INSERT INTO utilisateurs (id, nom, email, mot_de_passe, role) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO utilisateurs (id, nom, email, mot_de_passe, role, date_creation) VALUES (?, ?, ?, ?, ?, NOW())',
       [id, nomComplet, email, hash, 'citoyen']
     );
 
+    console.log('✅ Utilisateur créé:', id);
     res.status(201).json({ message: 'Compte créé avec succès' });
   } catch (err) {
+    console.error('❌ Erreur inscription:', err);
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 };
 
-// POST /api/auth/connexion
+// POST /api/auth/connexion (et /api/login)
 const connexion = async (req, res) => {
   try {
     const { email, mot_de_passe } = req.body;
@@ -66,7 +81,7 @@ const connexion = async (req, res) => {
     res.json({
       token,
       redirect,
-      utilisateur: {
+      user: {
         id:    utilisateur.id,
         nom:   utilisateur.nom,
         email: utilisateur.email,
@@ -74,6 +89,7 @@ const connexion = async (req, res) => {
       }
     });
   } catch (err) {
+    console.error('❌ Erreur connexion:', err);
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 };
@@ -112,15 +128,16 @@ const inscriptionAdmin = async (req, res) => {
 
     const hash = await bcrypt.hash(mot_de_passe, 10);
     const id = uuidv4();
-    const nomComplet = `${nom} ${prenom}`;
+    const nomComplet = `${prenom} ${nom}`;
 
     await db.query(
-      'INSERT INTO utilisateurs (id, nom, email, mot_de_passe, role) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO utilisateurs (id, nom, email, mot_de_passe, role, date_creation) VALUES (?, ?, ?, ?, ?, NOW())',
       [id, nomComplet, email, hash, 'admin']
     );
 
     res.status(201).json({ message: 'Compte administrateur créé avec succès', userId: id });
   } catch (err) {
+    console.error('❌ Erreur création admin:', err);
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 };

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authService } from '../api';
+import { authService } from "../services/api";
 
 const Register = () => {
   const [formData, setFormData] = useState({ nom: '', prenom: '', email: '', password: '', confirmPassword: '' });
@@ -23,10 +23,18 @@ const Register = () => {
     }
 
     try {
-      await authService.inscription({ nom: formData.nom, prenom: formData.prenom, email: formData.email, mot_de_passe: formData.password });
+      // Correction ici : utilisation de register au lieu de inscription
+      await authService.register({ 
+        nom: `${formData.prenom} ${formData.nom}`, // Concaténation prénom + nom
+        email: formData.email, 
+        mot_de_passe: formData.password 
+      });
       setSuccess('Inscription réussie ! Vous pouvez maintenant vous connecter.');
-      navigate('/login');
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
     } catch (err) {
+      console.error('Erreur:', err);
       setError(err.response?.data?.message || 'Erreur lors de l’inscription.');
     }
   };

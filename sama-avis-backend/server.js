@@ -4,28 +4,16 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 
-app.use(cors({
-  origin: 'http://localhost:5173',
-  credentials: true
-}));
-
+app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
 // Routes
-const ticketsRouter       = require('./routes/tickets');
-const authRouter          = require('./routes/auth');
-const commentairesRouter  = require('./routes/commentaires');
-const categoriesRouter    = require('./routes/categories');
-const notificationsRouter = require('./routes/notifications');
-const historiqueRouter    = require('./routes/historique');
+const ticketsRouter = require('./routes/tickets');
+const authRouter = require('./routes/auth');
 
 app.use('/api', ticketsRouter);
 app.use('/api', authRouter);
-app.use('/api', commentairesRouter);
-app.use('/api', categoriesRouter);
-app.use('/api', notificationsRouter);
-app.use('/api', historiqueRouter);
 
 // Route de test
 app.get('/', (req, res) => {
@@ -34,5 +22,10 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-  console.log(`Serveur démarré sur http://localhost:${PORT}`);
+  console.log(`🚀 Serveur démarré sur http://localhost:${PORT}`);
+  console.log(`📝 Routes disponibles:`);
+  console.log(`   - POST /api/register`);
+  console.log(`   - POST /api/login`);
+  console.log(`   - POST /api/auth/inscription`);
+  console.log(`   - POST /api/auth/connexion`);
 });

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import StatBox from '../components/StatBox';
-import { authService } from '../api';
+import { authService } from "../services/api";
 
 const Admin = () => {
   const navigate = useNavigate();

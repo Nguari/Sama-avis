@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ticketService } from '../api';
+import { ticketService } from '../services/api';
 
 const Signalement = () => {
   const navigate = useNavigate();

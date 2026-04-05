@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { ticketService } from '../api';
+import { ticketService } from '../services/api';
 
 // Correction pour l'icône par défaut qui disparait parfois avec Webpack/Vite
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
