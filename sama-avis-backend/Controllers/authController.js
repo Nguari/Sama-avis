@@ -5,20 +5,17 @@ const { v4: uuidv4 } = require('uuid');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'sama_avis_secret';
 
-// POST /api/auth/inscription (et /api/register)
+// POST /api/auth/inscription
 const inscription = async (req, res) => {
   try {
     const { nom, prenom, email, mot_de_passe } = req.body;
 
-    // Gérer les deux cas : frontend peut envoyer "nom" seul ou "nom" + "prenom"
     let nomComplet = nom;
-    
-    // Si prenom est fourni, on concatène
     if (prenom && prenom.trim() !== '') {
       nomComplet = `${prenom} ${nom}`;
     }
 
-    console.log('📝 Données reçues:', { nom, prenom, email, nomComplet });
+    console.log('Données reçues:', { nom, prenom, email, nomComplet });
 
     if (!nomComplet || !email || !mot_de_passe) {
       return res.status(400).json({ message: 'Nom, email et mot de passe sont obligatoires' });
@@ -41,15 +38,15 @@ const inscription = async (req, res) => {
       [id, nomComplet, email, hash, 'citoyen']
     );
 
-    console.log('✅ Utilisateur créé:', id);
+    console.log('Utilisateur créé:', id);
     res.status(201).json({ message: 'Compte créé avec succès' });
   } catch (err) {
-    console.error('❌ Erreur inscription:', err);
+    console.error('Erreur inscription:', err);
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 };
 
-// POST /api/auth/connexion (et /api/login)
+// POST /api/auth/connexion
 const connexion = async (req, res) => {
   try {
     const { email, mot_de_passe } = req.body;
@@ -75,13 +72,13 @@ const connexion = async (req, res) => {
       { expiresIn: '24h' }
     );
 
-    // Redirection selon le rôle
     const redirect = utilisateur.role === 'admin' ? '/admin' : '/';
 
+    // ✅ Renvoie "utilisateur" au lieu de "user"
     res.json({
       token,
       redirect,
-      user: {
+      utilisateur: {
         id:    utilisateur.id,
         nom:   utilisateur.nom,
         email: utilisateur.email,
@@ -89,7 +86,7 @@ const connexion = async (req, res) => {
       }
     });
   } catch (err) {
-    console.error('❌ Erreur connexion:', err);
+    console.error('Erreur connexion:', err);
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 };
@@ -106,13 +103,12 @@ const getAllUtilisateurs = async (req, res) => {
   }
 };
 
-// POST /api/auth/inscription-admin (Route sécurisée pour créer un admin)
+// POST /api/auth/inscription-admin
 const inscriptionAdmin = async (req, res) => {
   try {
     const { nom, prenom, email, mot_de_passe, adminSecret } = req.body;
     const ADMIN_SECRET = process.env.ADMIN_SECRET || 'sama_avis_admin_secret_2024';
 
-    // Vérifier le secret administrateur
     if (adminSecret !== ADMIN_SECRET) {
       return res.status(403).json({ message: 'Clé administrateur invalide' });
     }
@@ -137,7 +133,7 @@ const inscriptionAdmin = async (req, res) => {
 
     res.status(201).json({ message: 'Compte administrateur créé avec succès', userId: id });
   } catch (err) {
-    console.error('❌ Erreur création admin:', err);
+    console.error('Erreur création admin:', err);
     res.status(500).json({ message: 'Erreur serveur', error: err.message });
   }
 };

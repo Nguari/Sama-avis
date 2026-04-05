@@ -23,6 +23,18 @@ const getTicketById = async (req, res) => {
   }
 };
 
+const getTicketsByUser = async (req, res) => {
+  try {
+    const [tickets] = await db.query(
+      'SELECT * FROM tickets WHERE utilisateur_id = ? ORDER BY date_creation DESC',
+      [req.params.utilisateur_id]
+    );
+    res.json(tickets);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+  }
+};
+
 const createTicket = async (req, res) => {
   try {
     const { titre, categorie, description, latitude, longitude, utilisateur_id } = req.body;
@@ -32,14 +44,17 @@ const createTicket = async (req, res) => {
     }
 
     const id = uuidv4();
-    const attachmentUrls = req.files && req.files.length > 0
-      ? JSON.stringify(req.files.map((file) => `/uploads/${file.filename}`))
-      : null;
+
+    // Gestion de plusieurs photos — stocke les URLs séparées par une virgule
+    let photo_url = null;
+    if (req.files && req.files.length > 0) {
+      photo_url = req.files.map(f => `/uploads/${f.filename}`).join(',');
+    }
 
     await db.query(
       `INSERT INTO tickets (id, utilisateur_id, titre, categorie, description, latitude, longitude, photo_url)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [id, utilisateur_id || null, titre, categorie, description || null, latitude || null, longitude || null, attachmentUrls]
+      [id, utilisateur_id || null, titre, categorie, description || null, latitude || null, longitude || null, photo_url]
     );
 
     await enregistrerChangement(id, null, 'recu', utilisateur_id || null);
@@ -66,9 +81,7 @@ const updateStatut = async (req, res) => {
     }
 
     const ancienStatut = ticket[0].statut;
-
     await db.query('UPDATE tickets SET statut = ? WHERE id = ?', [statut, req.params.id]);
-
     await enregistrerChangement(req.params.id, ancienStatut, statut, modifie_par || null);
 
     const [rows] = await db.query('SELECT * FROM tickets WHERE id = ?', [req.params.id]);
@@ -90,4 +103,4 @@ const deleteTicket = async (req, res) => {
   }
 };
 
-module.exports = { getAllTickets, getTicketById, createTicket, updateStatut, deleteTicket };
+module.exports = { getAllTickets, getTicketById, getTicketsByUser, createTicket, updateStatut, deleteTicket };

@@ -2,14 +2,15 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { verifierToken, verifierAdmin } = require('../middleware/authmiddleware');
+const { verifierToken, verifierAdmin } = require('../middleware/authMiddleware');
 const {
   getAllTickets,
   getTicketById,
+  getTicketsByUser,
   createTicket,
   updateStatut,
   deleteTicket
-} = require('../Controllers/ticketController');
+} = require('../controllers/ticketController');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
@@ -21,23 +22,26 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB par fichier
   fileFilter: (req, file, cb) => {
-    const typesValides = /jpeg|jpg|png|webp|mp4|mov|webm/;
+    const typesValides = /jpeg|jpg|png|webp/;
     if (typesValides.test(path.extname(file.originalname).toLowerCase())) {
       cb(null, true);
     } else {
-      cb(new Error('Seules les images et vidéos (jpg, png, webp, mp4, mov, webm) sont acceptées'));
+      cb(new Error('Seules les images jpg, png et webp sont acceptées'));
     }
   }
 });
 
-// Routes publiques (citoyen)
+// Routes publiques
 router.get('/tickets', getAllTickets);
+router.get('/tickets/user/:utilisateur_id', getTicketsByUser);
 router.get('/tickets/:id', getTicketById);
-router.post('/tickets', upload.array('attachments', 6), createTicket);
 
-// Routes protégées (admin seulement)
+// Accepte jusqu'à 6 photos avec le champ 'photos'
+router.post('/tickets', upload.array('photos', 6), createTicket);
+
+// Routes protégées admin
 router.patch('/tickets/:id/statut', verifierToken, verifierAdmin, updateStatut);
 router.delete('/tickets/:id',       verifierToken, verifierAdmin, deleteTicket);
 
