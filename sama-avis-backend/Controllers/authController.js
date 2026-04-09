@@ -3,7 +3,12 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sama_avis_secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET non défini dans .env');
+  process.exit(1);
+}
 
 // POST /api/auth/inscription
 const inscription = async (req, res) => {
@@ -15,14 +20,21 @@ const inscription = async (req, res) => {
       nomComplet = `${prenom} ${nom}`;
     }
 
-    console.log('Données reçues:', { nom, prenom, email, nomComplet });
-
     if (!nomComplet || !email || !mot_de_passe) {
       return res.status(400).json({ message: 'Nom, email et mot de passe sont obligatoires' });
     }
 
-    if (mot_de_passe.length < 6) {
-      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 6 caractères' });
+    if (mot_de_passe.length < 8) {
+      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères' });
+    }
+    if (!/[A-Z]/.test(mot_de_passe)) {
+      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins une majuscule' });
+    }
+    if (!/[0-9]/.test(mot_de_passe)) {
+      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins un chiffre' });
+    }
+    if (!/[^A-Za-z0-9]/.test(mot_de_passe)) {
+      return res.status(400).json({ message: 'Le mot de passe doit contenir au moins un caractère spécial' });
     }
 
     const [existing] = await db.query('SELECT id FROM utilisateurs WHERE email = ?', [email]);
@@ -38,11 +50,10 @@ const inscription = async (req, res) => {
       [id, nomComplet, email, hash, 'citoyen']
     );
 
-    console.log('Utilisateur créé:', id);
     res.status(201).json({ message: 'Compte créé avec succès' });
   } catch (err) {
     console.error('Erreur inscription:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -87,7 +98,7 @@ const connexion = async (req, res) => {
     });
   } catch (err) {
     console.error('Erreur connexion:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -99,7 +110,8 @@ const getAllUtilisateurs = async (req, res) => {
     );
     res.json(utilisateurs);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    console.error('Erreur getAllUtilisateurs:', err);
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -107,9 +119,8 @@ const getAllUtilisateurs = async (req, res) => {
 const inscriptionAdmin = async (req, res) => {
   try {
     const { nom, prenom, email, mot_de_passe, adminSecret } = req.body;
-    const ADMIN_SECRET = process.env.ADMIN_SECRET || 'sama_avis_admin_secret_2024';
-
-    if (adminSecret !== ADMIN_SECRET) {
+    const ADMIN_SECRET = process.env.ADMIN_SECRET;
+    if (!ADMIN_SECRET || adminSecret !== ADMIN_SECRET) {
       return res.status(403).json({ message: 'Clé administrateur invalide' });
     }
 
@@ -134,7 +145,7 @@ const inscriptionAdmin = async (req, res) => {
     res.status(201).json({ message: 'Compte administrateur créé avec succès', userId: id });
   } catch (err) {
     console.error('Erreur création admin:', err);
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 

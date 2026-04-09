@@ -1,113 +1,91 @@
+// FRONTEND — api.js : Configuration Axios, intercepteurs JWT et services API (auth, tickets, catégories).
 import axios from 'axios';
 
-const API_URL = 'http://localhost:3001/api';
+// URL de base de l'API (depuis .env ou localhost par défaut)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
-const api = axios.create({
-  baseURL: API_URL,
-});
+// Instance Axios configurée avec l'URL de base
+const api = axios.create({ baseURL: API_URL });
 
+// ── Intercepteur de requête ──
+// Ajoute automatiquement le token JWT dans chaque requête
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Service d'authentification
+// ── Intercepteur de réponse ──
+// Si le token est expiré (401), déconnecter automatiquement l'utilisateur
+api.interceptors.response.use(
+  res => res,
+  err => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(err);
+  }
+);
+
+// ── Service Authentification ──
 export const authService = {
+  // Créer un nouveau compte citoyen
+  register: async (userData) => (await api.post('/auth/inscription', userData)).data,
 
-  // Inscription citoyen
-  register: async (userData) => {
-    const response = await api.post('/auth/inscription', userData);
-    return response.data;
-  },
-
-  // Connexion
+  // Se connecter → stocke le token et l'utilisateur dans localStorage
   login: async (credentials) => {
-    const response = await api.post('/auth/connexion', {
-      email:        credentials.email,
+    const res = await api.post('/auth/connexion', {
+      email: credentials.email,
       mot_de_passe: credentials.password
     });
-    if (response.data.token) {
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.utilisateur));
+    if (res.data.token) {
+      localStorage.setItem('token', res.data.token);
+      localStorage.setItem('user', JSON.stringify(res.data.utilisateur));
     }
-    return response.data;
+    return res.data;
   },
 
-  // Déconnexion
+  // Se déconnecter → vider le localStorage
   logout: () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   },
 
-  // Récupérer l'utilisateur courant
+  // Récupérer l'utilisateur connecté depuis localStorage
   getCurrentUser: () => {
-    const userStr = localStorage.getItem('user');
-    if (userStr) return JSON.parse(userStr);
-    return null;
+    try {
+      const u = localStorage.getItem('user');
+      return u && u !== 'undefined' ? JSON.parse(u) : null;
+    } catch { return null; }
   },
 
-  // Vérifier si l'utilisateur est admin
-  isAdmin: () => {
-    const user = authService.getCurrentUser();
-    return user && user.role === 'admin';
-  }
+  // Vérifier si l'utilisateur connecté est admin
+  isAdmin: () => authService.getCurrentUser()?.role === 'admin',
 };
 
-// Service pour les tickets
+// ── Service Tickets (Signalements) ──
 export const ticketService = {
-
-  // Récupérer tous les tickets
-  getAllTickets: async () => {
-    const response = await api.get('/tickets');
-    return response.data;
-  },
-
-  // Récupérer un ticket par ID
-  getTicketById: async (id) => {
-    const response = await api.get(`/tickets/${id}`);
-    return response.data;
-  },
-
-  // Créer un nouveau ticket
-  createTicket: async (ticketData) => {
-    const response = await api.post('/tickets', ticketData);
-    return response.data;
-  },
-
-  // Changer le statut d'un ticket (admin)
-  updateStatus: async (id, statut) => {
-    const response = await api.patch(`/tickets/${id}/statut`, { statut });
-    return response.data;
-  },
-
-  // Supprimer un ticket (admin)
-  deleteTicket: async (id) => {
-    const response = await api.delete(`/tickets/${id}`);
-    return response.data;
-  }
+  getAllTickets:  async ()     => (await api.get('/tickets')).data,
+  getTicketById: async (id)   => (await api.get(`/tickets/${id}`)).data,
+  createTicket:  async (data) => (await api.post('/tickets', data)).data,
+  updateStatus:  async (id, statut) => (await api.patch(`/tickets/${id}/statut`, { statut })).data,
+  deleteTicket:  async (id)   => (await api.delete(`/tickets/${id}`)).data,
 };
 
-// Service pour les catégories
+// ── Service Catégories ──
 export const categorieService = {
-  getAllCategories: async () => {
-    const response = await api.get('/categories');
-    return response.data;
-  }
+  getAllCategories: async () => (await api.get('/categories')).data,
 };
 
-// Service pour les commentaires
+// ── Service Commentaires ──
 export const commentaireService = {
-  getCommentaires: async (ticketId) => {
-    const response = await api.get(`/tickets/${ticketId}/commentaires`);
-    return response.data;
-  },
-  addCommentaire: async (ticketId, contenu, utilisateur_id) => {
-    const response = await api.post(`/tickets/${ticketId}/commentaires`, { contenu, utilisateur_id });
-    return response.data;
-  }
+  getCommentaires: async (ticketId) =>
+    (await api.get(`/tickets/${ticketId}/commentaires`)).data,
+  addCommentaire: async (ticketId, contenu, uid) =>
+    (await api.post(`/tickets/${ticketId}/commentaires`, { contenu, utilisateur_id: uid })).data,
 };
 
+// Export par défaut de l'instance Axios (pour les appels directs)
 export default api;

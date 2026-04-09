@@ -35,13 +35,13 @@ const upload = multer({
 
 // Routes publiques
 router.get('/tickets', getAllTickets);
-router.get('/tickets/user/:utilisateur_id', getTicketsByUser);
-router.get('/tickets/:id', getTicketById);
+router.get('/tickets/user/:utilisateur_id', verifierToken, getTicketsByUser);
 
-// Accepte jusqu'à 6 photos avec le champ 'photos'
-router.post('/tickets', upload.array('photos', 6), createTicket);
+// Création ticket avec photos
+router.post('/tickets', verifierToken, upload.array('photos', 6), createTicket);
 
-// Routes protégées admin
+// Routes protégées
+router.get('/tickets/:id',          verifierToken, getTicketById);
 router.patch('/tickets/:id/statut', verifierToken, verifierAdmin, updateStatut);
 router.delete('/tickets/:id',       verifierToken, verifierAdmin, deleteTicket);
 

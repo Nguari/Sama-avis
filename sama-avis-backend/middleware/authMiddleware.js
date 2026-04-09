@@ -1,6 +1,11 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'sama_avis_secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET non défini dans .env');
+  process.exit(1);
+}
 
 // Vérifie que l'utilisateur est connecté
 const verifierToken = (req, res, next) => {

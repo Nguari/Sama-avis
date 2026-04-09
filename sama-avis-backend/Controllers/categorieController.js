@@ -6,7 +6,7 @@ const getAllCategories = async (req, res) => {
     const [categories] = await db.query('SELECT * FROM categories ORDER BY nom ASC');
     res.json(categories);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -24,7 +24,7 @@ const createCategorie = async (req, res) => {
     const [rows] = await db.query('SELECT * FROM categories WHERE id = ?', [result.insertId]);
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -37,7 +37,7 @@ const deleteCategorie = async (req, res) => {
     }
     res.json({ message: 'Catégorie supprimée avec succès' });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 

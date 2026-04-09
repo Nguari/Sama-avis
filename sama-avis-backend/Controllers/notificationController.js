@@ -14,7 +14,7 @@ const getNotificationsByUser = async (req, res) => {
     );
     res.json(notifications);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -33,7 +33,7 @@ const createNotification = async (req, res) => {
     const [rows] = await db.query('SELECT * FROM notifications WHERE id = ?', [id]);
     res.status(201).json(rows[0]);
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -49,7 +49,7 @@ const marquerCommeLue = async (req, res) => {
     }
     res.json({ message: 'Notification marquée comme lue' });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -62,7 +62,7 @@ const deleteNotification = async (req, res) => {
     }
     res.json({ message: 'Notification supprimée avec succès' });
   } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur', error: err.message });
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 

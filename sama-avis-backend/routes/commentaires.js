@@ -2,13 +2,15 @@ const express = require('express');
 const router = express.Router();
 const { getCommentairesByTicket, addCommentaire, deleteCommentaire } = require('../Controllers/commentaireController');
 
-// Commentaires d'un ticket
-router.get('/tickets/:id/commentaires', getCommentairesByTicket);
+const { verifierToken } = require('../middleware/authMiddleware');
 
-// Ajouter un commentaire à un ticket
-router.post('/tickets/:id/commentaires', addCommentaire);
+// Commentaires d'un ticket
+router.get('/tickets/:id/commentaires',  verifierToken, getCommentairesByTicket);
+
+// Ajouter un commentaire
+router.post('/tickets/:id/commentaires', verifierToken, addCommentaire);
 
 // Supprimer un commentaire
-router.delete('/commentaires/:id', deleteCommentaire);
+router.delete('/commentaires/:id',       verifierToken, deleteCommentaire);
 
 module.exports = router;

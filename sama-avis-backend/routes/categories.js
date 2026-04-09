@@ -2,13 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { getAllCategories, createCategorie, deleteCategorie } = require('../Controllers/categorieController');
 
-// Toutes les catégories
+const { verifierToken, verifierAdmin } = require('../middleware/authMiddleware');
+
+// Routes publiques
 router.get('/categories', getAllCategories);
 
-// Ajouter une catégorie
-router.post('/categories', createCategorie);
-
-// Supprimer une catégorie
-router.delete('/categories/:id', deleteCategorie);
+// Routes protégées admin
+router.post('/categories',       verifierToken, verifierAdmin, createCategorie);
+router.delete('/categories/:id', verifierToken, verifierAdmin, deleteCategorie);
 
 module.exports = router;

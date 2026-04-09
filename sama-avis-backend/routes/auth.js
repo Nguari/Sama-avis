@@ -1,15 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const { inscription, connexion, getAllUtilisateurs, inscriptionAdmin } = require('../Controllers/authController');
+const { forgotPassword, resetPassword } = require('../Controllers/passwordController');
 
-// Routes existantes
+const { verifierToken, verifierAdmin } = require('../middleware/authMiddleware');
+
+// Routes publiques
 router.post('/auth/inscription', inscription);
-router.post('/auth/inscription-admin', inscriptionAdmin);
 router.post('/auth/connexion', connexion);
-router.get('/utilisateurs', getAllUtilisateurs);
+router.post('/auth/forgot-password', forgotPassword);
+router.post('/auth/reset-password', resetPassword);
+router.post('/register', inscription);
+router.post('/login', connexion);
 
-// NOUVELLES ROUTES - Pour compatibilité avec le frontend
-router.post('/register', inscription);      // Alias de inscription
-router.post('/login', connexion);           // Alias de connexion
+// Routes protégées admin
+router.post('/auth/inscription-admin', verifierToken, verifierAdmin, inscriptionAdmin);
+router.get('/utilisateurs',            verifierToken, verifierAdmin, getAllUtilisateurs);
 
 module.exports = router;
