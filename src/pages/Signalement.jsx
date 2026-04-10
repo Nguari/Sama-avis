@@ -1,53 +1,74 @@
-// FRONTEND — Signalement.jsx : Formulaire multi-étapes pour soumettre un signalement citoyen.
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 const CATEGORIES = [
-  { value: 'voirie',    label: 'Voirie / Routes',      icon: '🛣️', desc: 'Nids de poule, routes dégradées' },
-  { value: 'eclairage', label: 'Éclairage Public',      icon: '💡', desc: 'Lampadaires défectueux' },
-  { value: 'proprete',  label: 'Propreté & Déchets',    icon: '♻️', desc: 'Dépôts sauvages, ordures' },
-  { value: 'eau',       label: 'Eau & Assainissement',  icon: '🚰', desc: 'Fuites, inondations' },
-  { value: 'sante',     label: 'Santé & Sécurité',      icon: '❤️', desc: 'Risques sanitaires' },
-  { value: 'autre',     label: 'Autre',                 icon: '🔘', desc: 'Tout autre problème' },
+  { value: 'voirie',    label: 'Voirie / Routes',     icon: '🛣️', desc: 'Nids de poule' },
+  { value: 'eclairage', label: 'Éclairage Public',     icon: '💡', desc: 'Lampadaires défectueux' },
+  { value: 'proprete',  label: 'Propreté & Déchets',   icon: '♻️', desc: 'Dépôts sauvages' },
+  { value: 'eau',       label: 'Eau & Assainissement', icon: '🚰', desc: 'Fuites, inondations' },
+  { value: 'sante',     label: 'Santé & Sécurité',     icon: '❤️', desc: 'Risques sanitaires' },
+  { value: 'autre',     label: 'Autre',                icon: '🔘', desc: 'Autre problème' },
 ];
 
 const ETAPES = ['Informations', 'Localisation', 'Preuves', 'Confirmation'];
 
 const Signalement = () => {
-  const navigate   = useNavigate();
-  const userStr    = localStorage.getItem('user');
-  const user       = userStr && userStr !== 'undefined' && userStr !== 'null' ? JSON.parse(userStr) : null;
-  const isLoggedIn = useRef(!!user);
-  const userRef    = useRef(user);
+  const navigate       = useNavigate();
+  const isMounted      = useRef(true);
+  const suggestionsRef = useRef(null);
 
-  const [etape, setEtape]     = useState(0);
+  const [user, setUser]     = useState(null);
+  const [etape, setEtape]   = useState(0);
   const [formData, setFormData] = useState({
     titre: '', categorie: 'voirie', priorite: 'normale',
     adresse: '', description: '', latitude: '', longitude: ''
   });
-  const [attachments, setAttachments]     = useState([]);
-  const [previews, setPreviews]           = useState([]);
-  const [statusMessage, setStatusMessage] = useState('');
-  const [statusType, setStatusType]       = useState('');
-  const [loading, setLoading]             = useState(false);
-  const [gpsLoading, setGpsLoading]       = useState(false);
-  const [errors, setErrors]               = useState({});
+  const [attachments, setAttachments]               = useState([]);
+  const [previewUrls, setPreviewUrls]               = useState([]);
+  const [statusMessage, setStatusMessage]           = useState('');
+  const [statusType, setStatusType]                 = useState('');
+  const [loading, setLoading]                       = useState(false);
+  const [gpsLoading, setGpsLoading]                 = useState(false);
+  const [gpsStatut, setGpsStatut]                   = useState('');
+  const [errors, setErrors]                         = useState({});
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions]       = useState(false);
 
   useEffect(() => {
-    if (!isLoggedIn.current) navigate('/login');
+    try {
+      const userStr = localStorage.getItem('user');
+      if (userStr && userStr !== 'undefined' && userStr !== 'null') {
+        setUser(JSON.parse(userStr));
+      } else {
+        navigate('/login');
+      }
+    } catch {
+      navigate('/login');
+    }
+    return () => {
+      isMounted.current = false;
+      previewUrls.forEach(url => { try { URL.revokeObjectURL(url); } catch(e) {} });
+    };
   }, [navigate]);
 
   useEffect(() => {
-    return () => previews.forEach(item => URL.revokeObjectURL(item.url));
-  }, [previews]);
+    const handleClickOutside = (e) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const validate = (step) => {
     const e = {};
     if (step === 0) {
-      if (!formData.titre.trim())               e.titre = 'Le titre est obligatoire';
-      if (formData.titre.length > 100)          e.titre = 'Maximum 100 caractères';
-      if (formData.description.length > 500)    e.description = 'Maximum 500 caractères';
+      if (!formData.titre.trim())            e.titre       = 'Le titre est obligatoire';
+      if (formData.titre.length > 100)       e.titre       = 'Maximum 100 caractères';
+      if (!formData.description.trim())      e.description = 'La description est obligatoire';
+      if (formData.description.length > 500) e.description = 'Maximum 500 caractères';
     }
     if (step === 1) {
       if (!formData.adresse.trim()) e.adresse = "L'adresse est obligatoire";
@@ -57,57 +78,118 @@ const Signalement = () => {
   };
 
   const nextEtape = () => {
-    if (validate(etape)) setEtape(e => e + 1);
+    if (validate(etape)) {
+      setEtape(prev => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const prevEtape = () => {
+    setEtape(prev => prev - 1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleAttachmentsChange = (e) => {
-    const newFiles = Array.from(e.target.files).filter(f => {
-      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/quicktime'];
+    const files = Array.from(e.target.files);
+    const validFiles = files.filter(f => {
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'video/mp4'];
       return validTypes.includes(f.type) && f.size <= 5 * 1024 * 1024;
-    });
-    const combined = [...attachments, ...newFiles].slice(0, 6);
-    const newPreviews = combined.map(file => ({
-      url:  URL.createObjectURL(file),
-      type: file.type.startsWith('video/') ? 'video' : 'image',
-      name: file.name,
-      size: (file.size / 1024).toFixed(0)
-    }));
-    setAttachments(combined);
-    setPreviews(newPreviews);
+    }).slice(0, 6);
+    previewUrls.forEach(url => { try { URL.revokeObjectURL(url); } catch(e) {} });
+    setAttachments(validFiles);
+    setPreviewUrls(validFiles.map(f => URL.createObjectURL(f)));
   };
 
   const removeAttachment = (index) => {
-    URL.revokeObjectURL(previews[index].url);
+    try { URL.revokeObjectURL(previewUrls[index]); } catch(e) {}
     setAttachments(prev => prev.filter((_, i) => i !== index));
-    setPreviews(prev => prev.filter((_, i) => i !== index));
+    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
   };
 
+  // GPS — enableHighAccuracy: false pour éviter le timeout
   const handleGetCurrentLocation = () => {
     if (!navigator.geolocation) {
-      setErrors(prev => ({ ...prev, adresse: 'Géolocalisation non supportée.' }));
+      setGpsStatut('Géolocalisation non supportée par ce navigateur');
       return;
     }
     setGpsLoading(true);
+    setGpsStatut('Localisation en cours...');
+
     navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
+      (position) => {
+        if (!isMounted.current) return;
         setFormData(prev => ({
           ...prev,
-          latitude:  coords.latitude.toString(),
-          longitude: coords.longitude.toString()
+          latitude:  position.coords.latitude.toString(),
+          longitude: position.coords.longitude.toString()
         }));
         setGpsLoading(false);
+        setGpsStatut('');
+        setStatusMessage('Position GPS enregistrée ✓');
+        setStatusType('success');
+        setTimeout(() => setStatusMessage(''), 3000);
       },
-      () => {
-        setErrors(prev => ({ ...prev, adresse: 'Erreur GPS — vérifiez vos permissions.' }));
+      (error) => {
+        if (!isMounted.current) return;
         setGpsLoading(false);
+        const msgs = {
+          1: 'Permission refusée — autorisez la localisation dans Chrome',
+          2: 'Position non disponible',
+          3: 'Délai dépassé — réessayez'
+        };
+        setGpsStatut(msgs[error.code] || 'Erreur GPS');
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      // enableHighAccuracy: false = plus rapide, utilise WiFi/réseau
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
     );
   };
 
+  const searchAddress = useCallback(async (query) => {
+    if (!query || query.length < 3) {
+      setAddressSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Dakar')}&limit=5`,
+        { headers: { 'Accept-Language': 'fr' } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setAddressSuggestions(data.map(item => ({
+          display_name: item.display_name,
+          lat: item.lat,
+          lon: item.lon,
+          address: item.display_name.split(',')[0]
+        })));
+        setShowSuggestions(true);
+      }
+    } catch {}
+  }, []);
+
+  const selectAddress = (suggestion) => {
+    setFormData(prev => ({
+      ...prev,
+      adresse:   suggestion.address,
+      latitude:  suggestion.lat,
+      longitude: suggestion.lon
+    }));
+    setShowSuggestions(false);
+    setAddressSuggestions([]);
+  };
+
   const handleSubmit = async () => {
-    setStatusMessage('');
+    if (!validate(0) || !validate(1)) {
+      setEtape(0);
+      setStatusMessage('Veuillez remplir tous les champs obligatoires');
+      setStatusType('error');
+      return;
+    }
+
     setLoading(true);
+    setStatusMessage('');
+
     try {
       const data = new FormData();
       data.append('titre',       formData.titre.trim());
@@ -115,334 +197,371 @@ const Signalement = () => {
       data.append('adresse',     formData.adresse.trim());
       data.append('description', formData.description.trim());
       data.append('priorite',    formData.priorite);
-      if (user?.id)           data.append('utilisateur_id', userRef.current.id);
+      if (user?.id)           data.append('utilisateur_id', user.id);
       if (formData.latitude)  data.append('latitude',       formData.latitude);
       if (formData.longitude) data.append('longitude',      formData.longitude);
       attachments.forEach(file => data.append('photos', file));
 
-      await api.post('/tickets', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      await api.post('/tickets', data, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 30000
+      });
 
-      setStatusMessage('✅ Signalement envoyé avec succès ! Redirection...');
+      setStatusMessage('Signalement envoyé avec succès !');
       setStatusType('success');
-      setLoading(false);
-      setTimeout(() => navigate('/suivi', { replace: true }), 2000);
+      setTimeout(() => navigate('/suivi'), 2000);
+
     } catch (err) {
-      setStatusMessage(err.response?.data?.message || "Erreur lors de l'envoi.");
+      let msg = "Erreur lors de l'envoi";
+      if (err.response?.data?.message) msg = err.response.data.message;
+      if (err.code === 'ECONNABORTED')  msg = "Délai dépassé, vérifiez votre connexion";
+      setStatusMessage(msg);
       setStatusType('error');
+    } finally {
       setLoading(false);
     }
   };
 
-  if (!userRef.current) return null;
+  if (!user) return null;
 
   const categorieSelectionnee = CATEGORIES.find(c => c.value === formData.categorie);
 
   return (
-    <div className="min-h-screen bg-slate-50/50 py-12 px-4">
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen bg-slate-50/50 py-16 px-6">
+      <div className="max-w-4xl mx-auto bg-white rounded-[3rem] shadow-[0_30px_100px_-20px_rgba(0,0,0,0.08)] border border-slate-100 overflow-hidden">
 
         {/* Header */}
-        <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white mb-6 relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-8 opacity-5 text-9xl font-black rotate-12 select-none">DAKAR</div>
+        <div className="bg-slate-900 p-12 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-10 opacity-5 text-8xl font-black rotate-12 select-none">DAKAR</div>
           <div className="relative z-10">
             <span className="px-4 py-1.5 bg-blue-600 rounded-full text-[10px] font-black uppercase tracking-widest">
-              🇸🇳 Service Public — Dakar
+              Service Public
             </span>
-            <h1 className="text-3xl md:text-4xl font-black mt-4 mb-2 tracking-tight">Soumettre un signalement</h1>
-            <p className="text-slate-400 font-medium">
-              Bonjour <span className="text-white font-black">{userRef.current?.nom?.split(' ')[0] || 'Citoyen'}</span>, votre contribution améliore le quotidien de tous. 🤝
+            <h2 className="text-4xl font-black mt-4 mb-3 tracking-tight">Soumettre un incident</h2>
+            <p className="text-slate-400 font-medium italic">
+              Bonjour {user?.prenom || user?.nom?.split(' ')[0] || 'Citoyen'}, votre contribution améliore le quotidien de tous.
             </p>
           </div>
-          <div className="mt-6 relative z-10">
-            <span className="typewriter inline-block text-xl md:text-2xl font-black text-blue-400 tracking-widest uppercase italic">
-              Sa khalate sounou Yitè
-            </span>
-          </div>
         </div>
 
-        {/* Indicateur d'étapes */}
-        <div className="bg-white rounded-[2rem] p-6 mb-6 border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between">
+        {/* Slogan */}
+        <div className="px-12 pt-10 mb-2 animate-fadeInDown" style={{ animationDelay: '0.3s' }}>
+          <span className="typewriter inline-block text-3xl md:text-5xl font-black text-blue-600 tracking-widest uppercase italic">
+            Sa khalate sounou Yitè
+          </span>
+        </div>
+
+        {/* Progress bar */}
+        <div className="px-12 pt-6 pb-2">
+          <div className="flex justify-between">
             {ETAPES.map((label, i) => (
-              <React.Fragment key={label}>
-                <div className="flex flex-col items-center gap-1.5">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-black text-sm transition-all ${
-                    i < etape   ? 'bg-emerald-500 text-white' :
-                    i === etape ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' :
-                    'bg-slate-100 text-slate-400'
-                  }`}>
-                    {i < etape ? '✓' : i + 1}
-                  </div>
-                  <span className={`text-[9px] font-black uppercase tracking-wider hidden sm:block ${i === etape ? 'text-blue-600' : 'text-slate-400'}`}>
-                    {label}
-                  </span>
+              <div key={label} className="flex-1 text-center">
+                <div className={`w-9 h-9 mx-auto rounded-full flex items-center justify-center text-sm font-black transition-all ${
+                  i < etape   ? 'bg-green-500 text-white' :
+                  i === etape ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' :
+                  'bg-slate-100 text-slate-400'
+                }`}>
+                  {i < etape ? '✓' : i + 1}
                 </div>
-                {i < ETAPES.length - 1 && (
-                  <div className={`flex-1 h-1 mx-2 rounded-full transition-all ${i < etape ? 'bg-emerald-500' : 'bg-slate-100'}`}></div>
-                )}
-              </React.Fragment>
+                <span className={`text-[10px] font-black mt-1 block uppercase tracking-widest ${
+                  i === etape ? 'text-blue-600' : 'text-slate-400'
+                }`}>{label}</span>
+              </div>
             ))}
           </div>
+          <div className="mt-3 h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-600 rounded-full transition-all duration-500"
+              style={{ width: `${(etape / (ETAPES.length - 1)) * 100}%` }}
+            />
+          </div>
         </div>
 
-        {/* Formulaire */}
-        <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-xl overflow-hidden">
+        <div className="p-12 pt-6 space-y-8">
 
+          {/* Message statut */}
           {statusMessage && (
-            <div className={`mx-8 mt-8 rounded-2xl p-4 text-sm font-bold text-center ${statusType === 'error' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
+            <div className={`rounded-3xl p-4 text-sm font-bold text-center text-white ${
+              statusType === 'error'   ? 'bg-red-500' :
+              statusType === 'success' ? 'bg-green-500' : 'bg-slate-900'
+            }`}>
               {statusMessage}
             </div>
           )}
 
-          <div className="p-8 md:p-12 space-y-8">
+          {/* ── ÉTAPE 0 : Informations ── */}
+          {etape === 0 && (
+            <div className="space-y-8">
+              <h3 className="text-xl font-black text-slate-800">Informations générales</h3>
 
-            {/* ÉTAPE 0 — Informations */}
-            {etape === 0 && (
-              <div className="space-y-8 animate-fadeInUp">
-                <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
-                  <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-sm">1</div>
-                  <h2 className="font-black text-slate-900 text-xl">Informations générales</h2>
+              <div className="space-y-3">
+                <label className="text-[11px] font-black text-blue-600 uppercase tracking-widest ml-1">Titre *</label>
+                <input
+                  type="text"
+                  value={formData.titre}
+                  onChange={e => setFormData(prev => ({ ...prev, titre: e.target.value }))}
+                  className={`w-full px-7 py-5 bg-slate-50 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-blue-50 font-bold border ${errors.titre ? 'border-red-400' : 'border-transparent'}`}
+                  placeholder="Ex: Éclairage défectueux"
+                />
+                {errors.titre && <p className="text-red-500 text-xs ml-1">{errors.titre}</p>}
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Catégorie *</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {CATEGORIES.map(cat => (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, categorie: cat.value }))}
+                      className={`p-4 rounded-2xl border text-left transition-all ${
+                        formData.categorie === cat.value
+                          ? 'border-blue-600 bg-blue-50 shadow-lg shadow-blue-100'
+                          : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                      }`}
+                    >
+                      <span className="text-2xl">{cat.icon}</span>
+                      <p className="font-black text-sm mt-1 text-slate-800">{cat.label}</p>
+                      <p className="text-[10px] text-slate-400">{cat.desc}</p>
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[11px] font-black text-blue-600 uppercase tracking-widest">Titre *</label>
-                    <span className={`text-[10px] font-bold ${formData.titre.length > 90 ? 'text-red-500' : 'text-slate-400'}`}>{formData.titre.length}/100</span>
-                  </div>
+              <div className="space-y-3">
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">Niveau d'urgence</label>
+                <div className="flex gap-4">
+                  {['normale', 'haute'].map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, priorite: p }))}
+                      className={`flex-1 py-4 rounded-2xl font-black text-xs uppercase tracking-tighter transition-all ${
+                        formData.priorite === p
+                          ? p === 'haute' ? 'bg-red-500 text-white shadow-xl' : 'bg-slate-900 text-white shadow-xl'
+                          : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p === 'haute' ? '🚨 Critique' : '⚖️ Standard'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                  Description * <span className="text-slate-300 font-normal">{formData.description.length}/500</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={formData.description}
+                  onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                  className={`w-full px-7 py-5 bg-slate-50 rounded-3xl outline-none focus:bg-white focus:ring-4 focus:ring-blue-50 font-medium resize-none border ${errors.description ? 'border-red-400' : 'border-transparent'}`}
+                  placeholder="Décrivez la situation en quelques mots..."
+                />
+                {errors.description && <p className="text-red-500 text-xs ml-1">{errors.description}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* ── ÉTAPE 1 : Localisation ── */}
+          {etape === 1 && (
+            <div className="space-y-8">
+              <h3 className="text-xl font-black text-slate-800">Localisation</h3>
+
+              <div className="space-y-3" ref={suggestionsRef}>
+                <label className="text-[11px] font-black text-blue-600 uppercase tracking-widest ml-1">Adresse / Quartier *</label>
+                <div className="relative">
                   <input
                     type="text"
-                    value={formData.titre}
-                    maxLength={100}
-                    placeholder="Ex: Nid de poule dangereux, Lampadaire cassé..."
-                    className={`w-full px-7 py-5 bg-slate-50 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-blue-50 transition-all font-bold border ${errors.titre ? 'border-red-400 bg-red-50' : 'border-transparent'}`}
-                    onChange={e => setFormData(prev => ({ ...prev, titre: e.target.value }))}
+                    value={formData.adresse}
+                    onChange={e => {
+                      setFormData(prev => ({ ...prev, adresse: e.target.value }));
+                      searchAddress(e.target.value);
+                    }}
+                    className={`w-full px-7 py-5 bg-slate-50 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-blue-50 font-bold border ${errors.adresse ? 'border-red-400' : 'border-transparent'}`}
+                    placeholder="Ex: Médina, Rue 22 x 15"
                   />
-                  {errors.titre && <p className="text-red-500 text-xs font-bold ml-2">⚠ {errors.titre}</p>}
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-blue-600 uppercase tracking-widest">Catégorie *</label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {CATEGORIES.map(cat => (
-                      <button key={cat.value} type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, categorie: cat.value }))}
-                        className={`p-4 rounded-2xl border-2 text-left transition-all ${formData.categorie === cat.value ? 'border-blue-600 bg-blue-50' : 'border-slate-100 bg-slate-50 hover:border-slate-300'}`}
-                      >
-                        <div className="text-2xl mb-1">{cat.icon}</div>
-                        <p className="font-black text-slate-800 text-xs">{cat.label}</p>
-                        <p className="text-slate-400 text-[10px] mt-0.5">{cat.desc}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-blue-600 uppercase tracking-widest">Niveau d'urgence</label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { value: 'normale', label: '⚖️ Standard', desc: 'Problème non urgent' },
-                      { value: 'haute',   label: '🚨 Critique',  desc: 'Danger immédiat' },
-                    ].map(p => (
-                      <button key={p.value} type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, priorite: p.value }))}
-                        className={`p-5 rounded-2xl border-2 text-left transition-all ${formData.priorite === p.value ? (p.value === 'haute' ? 'border-red-500 bg-red-50' : 'border-slate-900 bg-slate-900 text-white') : 'border-slate-100 bg-slate-50 hover:border-slate-300'}`}
-                      >
-                        <p className="font-black text-sm">{p.label}</p>
-                        <p className={`text-[10px] mt-1 ${formData.priorite === p.value && p.value === 'normale' ? 'text-slate-300' : 'text-slate-400'}`}>{p.desc}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Description</label>
-                    <span className={`text-[10px] font-bold ${formData.description.length > 450 ? 'text-red-500' : 'text-slate-400'}`}>{formData.description.length}/500</span>
-                  </div>
-                  <textarea rows="4" value={formData.description} maxLength={500}
-                    placeholder="Décrivez précisément le problème : depuis quand, les risques potentiels..."
-                    className="w-full px-7 py-5 bg-slate-50 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-blue-50 transition-all font-medium resize-none border border-transparent"
-                    onChange={e => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* ÉTAPE 1 — Localisation */}
-            {etape === 1 && (
-              <div className="space-y-8 animate-fadeInUp">
-                <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
-                  <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-sm">2</div>
-                  <h2 className="font-black text-slate-900 text-xl">Localisation</h2>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-blue-600 uppercase tracking-widest">Adresse / Quartier *</label>
-                  <input type="text" value={formData.adresse}
-                    placeholder="Ex: Médina, Rue 22 x 15, près de la mosquée..."
-                    className={`w-full px-7 py-5 bg-slate-50 rounded-2xl outline-none focus:bg-white focus:ring-4 focus:ring-blue-50 transition-all font-bold border ${errors.adresse ? 'border-red-400 bg-red-50' : 'border-transparent'}`}
-                    onChange={e => setFormData(prev => ({ ...prev, adresse: e.target.value }))}
-                  />
-                  {errors.adresse && <p className="text-red-500 text-xs font-bold ml-2">⚠ {errors.adresse}</p>}
-                </div>
-
-                <div className="bg-slate-50 rounded-2xl p-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-black text-slate-800">📍 Géolocalisation GPS</p>
-                      <p className="text-slate-500 text-xs mt-1">Optionnel mais recommandé</p>
-                    </div>
-                    <button type="button" onClick={handleGetCurrentLocation} disabled={gpsLoading}
-                      className="px-5 py-3 bg-blue-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-blue-700 transition-all disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {gpsLoading
-                        ? <><span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span> Localisation...</>
-                        : '📍 Ma position'
-                      }
-                    </button>
-                  </div>
-                  {formData.latitude && formData.longitude ? (
-                    <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
-                      <span className="text-emerald-500 text-xl">✅</span>
-                      <div>
-                        <p className="text-emerald-700 font-black text-sm">Position enregistrée</p>
-                        <p className="text-emerald-600 text-xs font-mono mt-0.5">
-                          {parseFloat(formData.latitude).toFixed(5)}, {parseFloat(formData.longitude).toFixed(5)}
-                        </p>
-                      </div>
-                      <button type="button" onClick={() => setFormData(prev => ({ ...prev, latitude: '', longitude: '' }))}
-                        className="ml-auto text-slate-400 hover:text-red-500 font-black text-xs">✕</button>
-                    </div>
-                  ) : (
-                    <p className="text-slate-400 text-xs italic">Aucune position GPS enregistrée.</p>
-                  )}
-                </div>
-
-                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 flex gap-4">
-                  <span className="text-2xl">ℹ️</span>
-                  <div>
-                    <p className="font-black text-blue-800 text-sm">Pourquoi la localisation est importante ?</p>
-                    <p className="text-blue-600 text-xs mt-1 leading-relaxed">
-                      Une adresse précise permet aux équipes d'intervention de trouver rapidement le problème. Le GPS est encore plus précis.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ÉTAPE 2 — Preuves */}
-            {etape === 2 && (
-              <div className="space-y-8 animate-fadeInUp">
-                <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
-                  <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-sm">3</div>
-                  <h2 className="font-black text-slate-900 text-xl">Preuves visuelles</h2>
-                </div>
-
-                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 flex gap-4">
-                  <span className="text-2xl">💡</span>
-                  <div>
-                    <p className="font-black text-amber-800 text-sm">Conseil</p>
-                    <p className="text-amber-700 text-xs mt-1 leading-relaxed">
-                      Les signalements avec photos sont traités <strong>3x plus vite</strong>. Max 5 MB par fichier (jpg, png, webp, mp4).
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
-                    Photos / Vidéos ({attachments.length}/6) — Optionnel
-                  </label>
-                  {attachments.length < 6 && (
-                    <div className="relative group">
-                      <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime"
-                        multiple onChange={handleAttachmentsChange}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                      />
-                      <div className="w-full min-h-[8rem] border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-3 transition-all border-slate-200 bg-slate-50 group-hover:bg-blue-50 group-hover:border-blue-300">
-                        <span className="text-4xl">📷</span>
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-wider">Cliquez ou glissez vos fichiers ici</p>
-                        <p className="text-[10px] text-slate-300 font-medium">JPG, PNG, WEBP, MP4 — Max 5 MB</p>
-                      </div>
-                    </div>
-                  )}
-                  {previews.length > 0 && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
-                      {previews.map((file, index) => (
-                        <div key={index} className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shadow-sm group">
-                          {file.type === 'video'
-                            ? <video src={file.url} controls className="h-32 w-full object-cover" />
-                            : <img src={file.url} alt={`preview-${index}`} className="h-32 w-full object-cover" />
-                          }
-                          <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1">
-                            <p className="text-white text-[9px] font-bold truncate">{file.name}</p>
-                            <p className="text-slate-300 text-[9px]">{file.size} KB</p>
-                          </div>
-                          <button type="button" onClick={() => removeAttachment(index)}
-                            className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full text-xs font-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                          >✕</button>
-                        </div>
+                  {showSuggestions && addressSuggestions.length > 0 && (
+                    <div className="absolute z-10 w-full mt-2 bg-white border border-slate-100 rounded-2xl shadow-xl max-h-48 overflow-auto">
+                      {addressSuggestions.map((s, i) => (
+                        <button
+                          key={`${s.lat}-${i}`}
+                          type="button"
+                          onClick={() => selectAddress(s)}
+                          className="w-full text-left px-5 py-3 hover:bg-blue-50 border-b border-slate-50 last:border-0 transition-colors"
+                        >
+                          <p className="text-sm font-bold text-slate-800">📍 {s.address}</p>
+                          <p className="text-xs text-slate-400 truncate">{s.display_name}</p>
+                        </button>
                       ))}
                     </div>
                   )}
                 </div>
+                {errors.adresse && <p className="text-red-500 text-xs ml-1">{errors.adresse}</p>}
               </div>
-            )}
 
-            {/* ÉTAPE 3 — Confirmation */}
-            {etape === 3 && (
-              <div className="space-y-6 animate-fadeInUp">
-                <div className="flex items-center gap-3 pb-4 border-b border-slate-50">
-                  <div className="w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center text-white font-black text-sm">4</div>
-                  <h2 className="font-black text-slate-900 text-xl">Confirmation</h2>
+              <div className="bg-blue-50 rounded-3xl p-6 border border-blue-100">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="font-black text-slate-800">📍 Géolocalisation GPS</p>
+                    <p className="text-xs text-slate-500 mt-1">Optionnel mais recommandé</p>
+                    {gpsStatut && (
+                      <p className={`text-xs mt-2 font-bold ${gpsStatut.includes('Permission') || gpsStatut.includes('Erreur') || gpsStatut.includes('Délai') ? 'text-red-500' : 'text-blue-500'}`}>
+                        {gpsStatut}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGetCurrentLocation}
+                    disabled={gpsLoading}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-2xl text-sm font-black hover:bg-blue-700 transition-all disabled:opacity-50"
+                  >
+                    {gpsLoading ? 'Localisation...' : '🎯 Ma position'}
+                  </button>
                 </div>
-                <p className="text-slate-500 font-medium text-sm">Vérifiez les informations avant d'envoyer.</p>
-                <div className="space-y-3">
-                  {[
-                    { label: 'Titre',       value: formData.titre },
-                    { label: 'Catégorie',   value: `${categorieSelectionnee?.icon} ${categorieSelectionnee?.label}` },
-                    { label: 'Urgence',     value: formData.priorite === 'haute' ? '🚨 Critique' : '⚖️ Standard' },
-                    { label: 'Adresse',     value: formData.adresse },
-                    { label: 'GPS',         value: formData.latitude ? `${parseFloat(formData.latitude).toFixed(5)}, ${parseFloat(formData.longitude).toFixed(5)}` : 'Non renseigné' },
-                    { label: 'Photos',      value: attachments.length > 0 ? `${attachments.length} fichier(s)` : 'Aucune' },
-                    { label: 'Description', value: formData.description || 'Aucune description' },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="flex gap-4 p-4 bg-slate-50 rounded-2xl">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 w-24 shrink-0 pt-0.5">{label}</span>
-                      <span className="font-bold text-slate-800 text-sm">{value}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 flex gap-3">
-                  <span>🔒</span>
-                  <p className="text-blue-700 text-xs font-medium leading-relaxed">
-                    Votre signalement sera traité par les équipes municipales de Dakar. Suivez son évolution dans la section <strong>Suivi</strong>.
-                  </p>
-                </div>
+
+                {formData.latitude && formData.longitude && (
+                  <div className="mt-4 p-3 bg-green-100 rounded-2xl">
+                    <p className="text-sm font-black text-green-800">✓ Position enregistrée</p>
+                    <p className="text-xs text-green-600 font-mono mt-1">
+                      {parseFloat(formData.latitude).toFixed(6)}°, {parseFloat(formData.longitude).toFixed(6)}°
+                    </p>
+                  </div>
+                )}
+
+                {/* Instructions si permission refusée */}
+                {gpsStatut.includes('Permission') && (
+                  <div className="mt-3 p-3 bg-yellow-50 rounded-2xl border border-yellow-100">
+                    <p className="text-xs font-bold text-yellow-800">Comment autoriser :</p>
+                    <p className="text-xs text-yellow-700 mt-1">Cliquez sur le 🔒 cadenas dans la barre d'adresse → Localisation → Autoriser</p>
+                  </div>
+                )}
               </div>
-            )}
-
-            {/* Navigation */}
-            <div className="flex gap-4 pt-4 border-t border-slate-50">
-              {etape > 0 && (
-                <button type="button" onClick={() => setEtape(e => e - 1)}
-                  className="px-8 py-4 bg-slate-100 text-slate-700 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-slate-200 transition-all"
-                >← Retour</button>
-              )}
-              {etape < ETAPES.length - 1 ? (
-                <button type="button" onClick={nextEtape}
-                  className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-200"
-                >Continuer →</button>
-              ) : (
-                <button type="button" onClick={handleSubmit} disabled={loading}
-                  className="flex-1 py-5 bg-slate-900 text-white rounded-2xl font-black text-lg hover:bg-blue-600 transition-all duration-300 shadow-2xl flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading
-                    ? <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></span> Envoi en cours...</>
-                    : <>Envoyer le signalement 🚀</>
-                  }
-                </button>
-              )}
             </div>
+          )}
+
+          {/* ── ÉTAPE 2 : Preuves ── */}
+          {etape === 2 && (
+            <div className="space-y-6">
+              <h3 className="text-xl font-black text-slate-800">Preuves visuelles</h3>
+
+              <div className="bg-amber-50 rounded-2xl p-4 border border-amber-100">
+                <p className="text-sm font-medium text-amber-800">
+                  💡 Les signalements avec photos sont traités 3x plus vite
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                  Photos / Vidéos ({attachments.length}/6)
+                </label>
+
+                {attachments.length < 6 && (
+                  <div className="relative group">
+                    <input
+                      type="file"
+                      accept="image/*,video/*"
+                      multiple
+                      onChange={handleAttachmentsChange}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                    />
+                    <div className="w-full min-h-[10rem] border-2 border-dashed rounded-[2rem] flex flex-col items-center justify-center gap-3 transition-all border-slate-200 bg-slate-50 group-hover:bg-slate-100 group-hover:border-blue-300">
+                      <span className="text-3xl text-slate-300">📷🎥</span>
+                      <p className="text-xs font-black text-slate-400 uppercase tracking-tighter">
+                        Cliquez pour ajouter jusqu'à 6 fichiers
+                      </p>
+                      <p className="text-[10px] text-slate-400">Max 5 MB par fichier · jpg, png, webp, mp4</p>
+                    </div>
+                  </div>
+                )}
+
+                {previewUrls.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4">
+                    {previewUrls.map((url, index) => (
+                      <div key={url} className="relative rounded-3xl overflow-hidden border border-slate-200 shadow-sm group">
+                        {attachments[index]?.type?.startsWith('video/') ? (
+                          <video src={url} controls className="w-full h-36 object-cover" />
+                        ) : (
+                          <img src={url} alt="preview" className="w-full h-36 object-cover" />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(index)}
+                          className="absolute top-2 right-2 w-7 h-7 bg-red-500 text-white rounded-full text-xs font-black flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                        >
+                          ✕
+                        </button>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-3 py-1">
+                          <p className="text-white text-[10px] truncate">{attachments[index]?.name}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── ÉTAPE 3 : Confirmation ── */}
+          {etape === 3 && (
+            <div className="space-y-6">
+              <h3 className="text-xl font-black text-slate-800">Confirmation</h3>
+              <p className="text-slate-500 text-sm">Vérifiez vos informations avant d'envoyer</p>
+
+              <div className="space-y-2">
+                {[
+                  { label: 'Titre',       value: formData.titre },
+                  { label: 'Catégorie',   value: `${categorieSelectionnee?.icon} ${categorieSelectionnee?.label}` },
+                  { label: 'Urgence',     value: formData.priorite === 'haute' ? '🚨 Critique' : '⚖️ Standard' },
+                  { label: 'Adresse',     value: formData.adresse },
+                  { label: 'Description', value: formData.description },
+                  { label: 'Fichiers',    value: `${attachments.length} fichier(s)` },
+                  ...(formData.latitude ? [{
+                    label: 'GPS',
+                    value: `${parseFloat(formData.latitude).toFixed(6)}°, ${parseFloat(formData.longitude).toFixed(6)}°`
+                  }] : [])
+                ].map(({ label, value }) => (
+                  <div key={label} className="flex gap-4 p-4 bg-slate-50 rounded-2xl">
+                    <span className="w-28 text-[10px] font-black text-slate-400 uppercase tracking-widest pt-0.5 flex-shrink-0">{label}</span>
+                    <span className="flex-1 font-medium text-slate-800 text-sm">{value || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex gap-3 pt-4 border-t border-slate-50">
+            {etape > 0 && (
+              <button
+                type="button"
+                onClick={prevEtape}
+                className="px-8 py-4 bg-slate-100 text-slate-700 rounded-2xl font-black hover:bg-slate-200 transition-all"
+              >
+                ← Retour
+              </button>
+            )}
+
+            {etape < ETAPES.length - 1 ? (
+              <button
+                type="button"
+                onClick={nextEtape}
+                className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-slate-900 transition-all shadow-lg shadow-blue-200"
+              >
+                Continuer →
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading}
+                className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-slate-900 transition-all shadow-2xl shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Envoi en cours...' : '📤 Envoyer le signalement'}
+              </button>
+            )}
           </div>
         </div>
       </div>
