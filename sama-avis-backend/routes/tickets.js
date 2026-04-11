@@ -10,7 +10,7 @@ const {
   createTicket,
   updateStatut,
   deleteTicket
-} = require('../controllers/ticketController');
+} = require('../Controllers/ticketController');
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
